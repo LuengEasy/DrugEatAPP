@@ -262,6 +262,47 @@ private fun MedicationSettingsScreen(
                 }
             }
         }
+
+        items(uiState.medications, key = { it.id }) { med ->
+            var editName by remember(med.id) { mutableStateOf(med.name) }
+            var editColor by remember(med.id) { mutableStateOf(med.colorHex) }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("编辑：${med.name}", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    ColorSelector(selectedColor = editColor, onSelectColor = { editColor = it })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { onUpdateMedication(med.id, editName, editColor) }) {
+                            Text("保存修改")
+                        }
+                        Button(onClick = { pendingDeleteMedication = med }) {
+                            Text("删除")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorSelector(selectedColor: Long, onSelectColor: (Long) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PresetColors.forEach { colorHex ->
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .background(Color(colorHex), CircleShape)
+                    .clickable { onSelectColor(colorHex) }
+                    .padding(if (selectedColor == colorHex) 2.dp else 0.dp)
+            )
+        }
     }
 }
 
@@ -315,7 +356,7 @@ private fun CalendarGrid(
         }
         Spacer(Modifier.height(8.dp))
         LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.height(280.dp), userScrollEnabled = false) {
-            items(days) { day ->
+            gridItems(days) { day ->
                 if (day == null) {
                     Box(modifier = Modifier.size(44.dp))
                 } else {
