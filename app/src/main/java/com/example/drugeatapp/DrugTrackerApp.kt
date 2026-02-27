@@ -1,6 +1,7 @@
 package com.example.drugeatapp
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,37 +14,48 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val PresetColors = listOf(
     0xFFE53935,
@@ -54,39 +66,216 @@ private val PresetColors = listOf(
     0xFFFF7043
 )
 
+private enum class AppScreen { Main, MedicationSettings }
+
 @Composable
 fun DrugTrackerApp(viewModel: MedicationViewModel) {
     val uiState by viewModel.uiState.collectAsState()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var currentScreen by remember { mutableStateOf(AppScreen.Main) }
+
     MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item {
-                    MonthHeader(
-                        monthText = uiState.currentMonth.format(DateTimeFormatter.ofPattern("yyyy年 M月", Locale.CHINA)),
-                        onPrevious = viewModel::previousMonth,
-                        onNext = viewModel::nextMonth
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Text("菜单", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
+                    Text(
+                        text = "日历主页",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                currentScreen = AppScreen.Main
+                                scope.launch { drawerState.close() }
+                            }
+                            .padding(16.dp)
                     )
-                }
-                item {
-                    CalendarGrid(
-                        currentMonth = uiState.currentMonth,
-                        selectedDate = uiState.selectedDate,
-                        records = uiState.records,
-                        medications = uiState.medications,
-                        onSelectDate = viewModel::selectDate
-                    )
-                }
-                item {
-                    MedicationEditor(uiState = uiState, onAddMedication = viewModel::addMedication)
-                }
-                item {
-                    DailyRecordEditor(
-                        uiState = uiState,
-                        onToggleMedication = viewModel::toggleMedicationForSelectedDate,
-                        onUpdateNote = viewModel::updateNoteForSelectedDate
+                    Text(
+                        text = "药物名称与颜色设置",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                currentScreen = AppScreen.MedicationSettings
+                                scope.launch { drawerState.close() }
+                            }
+                            .padding(16.dp)
                     )
                 }
             }
+        ) {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "打开菜单")
+                        }
+                        Spacer(Modifier.size(8.dp))
+                        Text(
+                            if (currentScreen == AppScreen.Main) "服药日历" else "药物设置",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+
+                    if (currentScreen == AppScreen.Main) {
+                        MainScreen(
+                            uiState = uiState,
+                            onPrevious = viewModel::previousMonth,
+                            onNext = viewModel::nextMonth,
+                            onSelectDate = viewModel::selectDate,
+                            onToggleMedication = viewModel::toggleMedicationForSelectedDate,
+                            onUpdateNote = viewModel::updateNoteForSelectedDate
+                        )
+                    } else {
+                        MedicationSettingsScreen(
+                            uiState = uiState,
+                            onAddMedication = viewModel::addMedication,
+                            onUpdateMedication = viewModel::updateMedication,
+                            onDeleteMedication = viewModel::deleteMedication
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainScreen(
+    uiState: MedicationUiState,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onSelectDate: (LocalDate) -> Unit,
+    onToggleMedication: (Long) -> Unit,
+    onUpdateNote: (String) -> Unit
+) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            MonthHeader(
+                monthText = uiState.currentMonth.format(DateTimeFormatter.ofPattern("yyyy年 M月", Locale.CHINA)),
+                onPrevious = onPrevious,
+                onNext = onNext
+            )
+        }
+        item {
+            CalendarGrid(
+                currentMonth = uiState.currentMonth,
+                selectedDate = uiState.selectedDate,
+                records = uiState.records,
+                medications = uiState.medications,
+                onSelectDate = onSelectDate
+            )
+        }
+        item {
+            DailyRecordEditor(
+                uiState = uiState,
+                onToggleMedication = onToggleMedication,
+                onUpdateNote = onUpdateNote
+            )
+        }
+    }
+}
+
+@Composable
+private fun MedicationSettingsScreen(
+    uiState: MedicationUiState,
+    onAddMedication: (String, Long) -> Unit,
+    onUpdateMedication: (Long, String, Long) -> Unit,
+    onDeleteMedication: (Long) -> Unit
+) {
+    var newName by remember { mutableStateOf("") }
+    var newColor by remember { mutableStateOf(PresetColors.first()) }
+    var pendingDeleteMedication by remember { mutableStateOf<Medication?>(null) }
+
+    pendingDeleteMedication?.let { medication ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteMedication = null },
+            title = { Text("确认删除") },
+            text = { Text("确定删除药物「${medication.name}」吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteMedication(medication.id)
+                    pendingDeleteMedication = null
+                }) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteMedication = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("新增药物", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("药物名称") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    ColorSelector(selectedColor = newColor, onSelectColor = { newColor = it })
+                    Button(onClick = {
+                        onAddMedication(newName, newColor)
+                        newName = ""
+                    }) {
+                        Text("添加药物")
+                    }
+                }
+            }
+        }
+
+        items(uiState.medications, key = { it.id }) { med ->
+            var editName by remember(med.id) { mutableStateOf(med.name) }
+            var editColor by remember(med.id) { mutableStateOf(med.colorHex) }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("编辑：${med.name}", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    ColorSelector(selectedColor = editColor, onSelectColor = { editColor = it })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { onUpdateMedication(med.id, editName, editColor) }) {
+                            Text("保存修改")
+                        }
+                        Button(onClick = { pendingDeleteMedication = med }) {
+                            Text("删除")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorSelector(selectedColor: Long, onSelectColor: (Long) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PresetColors.forEach { colorHex ->
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .background(Color(colorHex), CircleShape)
+                    .clickable { onSelectColor(colorHex) }
+                    .padding(if (selectedColor == colorHex) 2.dp else 0.dp)
+            )
         }
     }
 }
@@ -115,7 +304,7 @@ private fun CalendarGrid(
         repeat(leadingEmpty) { add(null) }
         repeat(daysInMonth) { add(currentMonth.atDay(it + 1)) }
     }
-
+    val today = LocalDate.now()
     val medicationMap = medications.associateBy { it.id }
 
     Column {
@@ -126,16 +315,22 @@ private fun CalendarGrid(
         }
         Spacer(Modifier.height(8.dp))
         LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.height(280.dp), userScrollEnabled = false) {
-            items(days) { day ->
+            gridItems(days) { day ->
                 if (day == null) {
                     Box(modifier = Modifier.size(44.dp))
                 } else {
                     val selected = day == selectedDate
+                    val isToday = day == today
                     val record = records[day.storageKey()]
                     Card(
                         modifier = Modifier
                             .padding(2.dp)
                             .size(44.dp)
+                            .border(
+                                width = if (isToday) 2.dp else 0.dp,
+                                color = if (isToday) Color.Red else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp)
+                            )
                             .clickable { onSelectDate(day) }
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxSize().padding(top = 3.dp)) {
@@ -164,51 +359,6 @@ private fun CalendarGrid(
 }
 
 @Composable
-private fun MedicationEditor(uiState: MedicationUiState, onAddMedication: (String, Long) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var selectedColor by remember { mutableStateOf(PresetColors.first()) }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("添加药物", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("药物名称") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PresetColors.forEach { colorHex ->
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .background(Color(colorHex), CircleShape)
-                            .clickable { selectedColor = colorHex }
-                            .padding(if (selectedColor == colorHex) 2.dp else 0.dp)
-                    )
-                }
-            }
-            Button(onClick = {
-                onAddMedication(name, selectedColor)
-                name = ""
-            }) {
-                Text("保存药物")
-            }
-            Divider()
-            uiState.medications.forEach { med ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Box(modifier = Modifier.size(10.dp).background(med.asColor(), CircleShape))
-                    Spacer(Modifier.size(8.dp))
-                    Text("${med.name}")
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun DailyRecordEditor(
     uiState: MedicationUiState,
     onToggleMedication: (Long) -> Unit,
@@ -222,7 +372,7 @@ private fun DailyRecordEditor(
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${uiState.selectedDate} 服药记录", style = MaterialTheme.typography.titleMedium)
             if (uiState.medications.isEmpty()) {
-                Text("请先添加药物")
+                Text("请先在菜单中添加药物")
             } else {
                 uiState.medications.forEach { med ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -236,6 +386,7 @@ private fun DailyRecordEditor(
                     }
                 }
             }
+            Divider()
             OutlinedTextField(
                 value = noteText,
                 onValueChange = {
