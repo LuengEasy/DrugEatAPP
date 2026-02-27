@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,7 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -261,6 +261,47 @@ private fun MedicationSettingsScreen(
                     }
                 }
             }
+        }
+
+        items(uiState.medications, key = { it.id }) { med ->
+            var editName by remember(med.id) { mutableStateOf(med.name) }
+            var editColor by remember(med.id) { mutableStateOf(med.colorHex) }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("编辑：${med.name}", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    ColorSelector(selectedColor = editColor, onSelectColor = { editColor = it })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { onUpdateMedication(med.id, editName, editColor) }) {
+                            Text("保存修改")
+                        }
+                        Button(onClick = { pendingDeleteMedication = med }) {
+                            Text("删除")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorSelector(selectedColor: Long, onSelectColor: (Long) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PresetColors.forEach { colorHex ->
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .background(Color(colorHex), CircleShape)
+                    .clickable { onSelectColor(colorHex) }
+                    .padding(if (selectedColor == colorHex) 2.dp else 0.dp)
+            )
         }
     }
 }
