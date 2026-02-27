@@ -45,6 +45,22 @@ class MedicationViewModel(private val repository: MedicationRepository) : ViewMo
         save(_uiState.value.copy(medications = updated))
     }
 
+    fun updateMedication(id: Long, name: String, colorHex: Long) {
+        if (name.isBlank()) return
+        val updated = _uiState.value.medications.map { medication ->
+            if (medication.id == id) medication.copy(name = name.trim(), colorHex = colorHex) else medication
+        }
+        save(_uiState.value.copy(medications = updated))
+    }
+
+    fun deleteMedication(id: Long) {
+        val updatedMedications = _uiState.value.medications.filterNot { it.id == id }
+        val updatedRecords = _uiState.value.records.mapValues { (_, record) ->
+            record.copy(medicationIds = record.medicationIds.filterNot { it == id })
+        }
+        save(_uiState.value.copy(medications = updatedMedications, records = updatedRecords))
+    }
+
     fun toggleMedicationForSelectedDate(id: Long) {
         val dateKey = _uiState.value.selectedDate.storageKey()
         val current = _uiState.value.records[dateKey] ?: DayRecord(date = dateKey)
