@@ -26,7 +26,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,11 +45,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -151,7 +152,7 @@ private fun MainScreen(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onSelectDate: (LocalDate) -> Unit,
-    onToggleMedication: (Long) -> Unit,
+    onToggleMedication: Long.() -> Unit,
     onUpdateNote: (String) -> Unit
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -189,7 +190,7 @@ private fun MedicationSettingsScreen(
     onDeleteMedication: (Long) -> Unit
 ) {
     var newName by remember { mutableStateOf("") }
-    var newColor by remember { mutableStateOf(PresetColors.first()) }
+    var newColor by remember { mutableLongStateOf(PresetColors.first()) }
     var pendingDeleteMedication by remember { mutableStateOf<Medication?>(null) }
 
     pendingDeleteMedication?.let { medication ->
@@ -227,6 +228,7 @@ private fun MedicationSettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     ColorSelector(selectedColor = newColor, onSelectColor = { newColor = it })
+
                     Button(onClick = {
                         onAddMedication(newName, newColor)
                         newName = ""
@@ -237,35 +239,10 @@ private fun MedicationSettingsScreen(
             }
         }
 
-        items(uiState.medications, key = { it.id }) { med ->
-            var editName by remember(med.id) { mutableStateOf(med.name) }
-            var editColor by remember(med.id) { mutableStateOf(med.colorHex) }
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("编辑：${med.name}", style = MaterialTheme.typography.titleSmall)
-                    OutlinedTextField(
-                        value = editName,
-                        onValueChange = { editName = it },
-                        label = { Text("名称") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    ColorSelector(selectedColor = editColor, onSelectColor = { editColor = it })
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { onUpdateMedication(med.id, editName, editColor) }) {
-                            Text("保存修改")
-                        }
-                        Button(onClick = { pendingDeleteMedication = med }) {
-                            Text("删除")
-                        }
-                    }
-                }
-            }
-        }
 
         items(uiState.medications, key = { it.id }) { med ->
             var editName by remember(med.id) { mutableStateOf(med.name) }
-            var editColor by remember(med.id) { mutableStateOf(med.colorHex) }
+            var editColor by remember(med.id) { mutableLongStateOf(med.colorHex) }
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("编辑：${med.name}", style = MaterialTheme.typography.titleSmall)
@@ -306,20 +283,8 @@ private fun ColorSelector(selectedColor: Long, onSelectColor: (Long) -> Unit) {
     }
 }
 
-@Composable
-private fun ColorSelector(selectedColor: Long, onSelectColor: (Long) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PresetColors.forEach { colorHex ->
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .background(Color(colorHex), CircleShape)
-                    .clickable { onSelectColor(colorHex) }
-                    .padding(if (selectedColor == colorHex) 2.dp else 0.dp)
-            )
-        }
-    }
-}
+
+
 
 @Composable
 private fun MonthHeader(monthText: String, onPrevious: () -> Unit, onNext: () -> Unit) {
@@ -341,7 +306,7 @@ private fun CalendarGrid(
     val firstDay = currentMonth.atDay(1)
     val daysInMonth = currentMonth.lengthOfMonth()
     val leadingEmpty = (firstDay.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
-    val days = buildList<LocalDate?> {
+    val days = buildList{
         repeat(leadingEmpty) { add(null) }
         repeat(daysInMonth) { add(currentMonth.atDay(it + 1)) }
     }
@@ -356,7 +321,7 @@ private fun CalendarGrid(
         }
         Spacer(Modifier.height(8.dp))
         LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.height(280.dp), userScrollEnabled = false) {
-            gridItems(days) { day ->
+            items(days) { day ->
                 if (day == null) {
                     Box(modifier = Modifier.size(44.dp))
                 } else {
@@ -427,7 +392,7 @@ private fun DailyRecordEditor(
                     }
                 }
             }
-            Divider()
+            HorizontalDivider()
             OutlinedTextField(
                 value = noteText,
                 onValueChange = {
